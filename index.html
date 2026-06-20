@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Aurora Debug UI</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <div>
+      <strong>Aurora</strong>
+      <span class="subtitle">agent debug console</span>
+    </div>
+    <span id="connection" class="connection offline">disconnected</span>
+  </header>
+
+  <div id="error-banner" class="error-banner hidden">
+    <span id="error-message"></span>
+    <button id="dismiss-error" type="button">Dismiss</button>
+  </div>
+
+  <main class="workspace">
+    <aside class="panel threads-panel">
+      <div class="panel-header">
+        <h2>Threads</h2>
+        <button id="new-thread" type="button">New</button>
+      </div>
+      <div id="thread-list" class="thread-list"></div>
+    </aside>
+
+    <section class="panel chat-panel">
+      <div class="panel-header">
+        <div>
+          <h2 id="thread-title">Select a thread</h2>
+          <span id="thread-meta" class="muted"></span>
+        </div>
+      </div>
+      <div id="conversation" class="conversation empty-state">
+        Create or select a thread to begin.
+      </div>
+      <form id="composer" class="composer">
+        <textarea id="message-input" rows="4" placeholder="Ask Aurora to research or reason…" disabled></textarea>
+        <div class="composer-actions">
+          <span id="composer-hint" class="muted">Enter to send · Shift+Enter for newline</span>
+          <button id="send-message" type="submit" disabled>Send</button>
+        </div>
+      </form>
+    </section>
+
+    <aside class="panel inspector-panel">
+      <div class="panel-header">
+        <h2>Run inspector</h2>
+      </div>
+      <div id="run-inspector" class="inspector empty-state">Select a run.</div>
+    </aside>
+  </main>
+
+  <script type="module" src="/app.mjs"></script>
+</body>
+</html>
