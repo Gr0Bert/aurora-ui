@@ -48,6 +48,14 @@ export function preview(value, limit = 500) {
   return { text: `${characters.slice(0, limit).join("")}[…]`, truncated: true };
 }
 
+export function parseJSON(value, label) {
+  try {
+    return JSON.parse(value);
+  } catch (error) {
+    throw new Error(`${label}: ${error.message}`);
+  }
+}
+
 export async function api(path, options = {}) {
   const response = await fetch(path, {
     ...options,

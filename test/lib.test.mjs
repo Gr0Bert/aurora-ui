@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { canRetry, canStop, mergeRun, parseRoute, preview, routeFor } from "../lib.mjs";
+import { canRetry, canStop, mergeRun, parseJSON, parseRoute, preview, routeFor } from "../lib.mjs";
 
 test("hash routes round-trip", () => {
   const hash = routeFor("thr one", "run/two");
@@ -23,4 +23,9 @@ test("run controls match lifecycle", () => {
 
 test("preview truncates Unicode by characters", () => {
   assert.deepEqual(preview("界界界", 2), { text: "界界[…]", truncated: true });
+});
+
+test("parseJSON reports field context", () => {
+  assert.deepEqual(parseJSON("[]", "manifest"), []);
+  assert.throws(() => parseJSON("{", "manifest"), /manifest/);
 });

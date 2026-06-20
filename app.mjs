@@ -1,5 +1,5 @@
 import {
-  api, canRetry, canStop, isActive, mergeRun, parseRoute, preview, routeFor,
+  api, canRetry, canStop, mergeRun, parseJSON, parseRoute, preview, routeFor,
 } from "./lib.mjs";
 
 const state = {
@@ -23,10 +23,15 @@ const elements = {
   input: document.querySelector("#message-input"),
   send: document.querySelector("#send-message"),
   inspector: document.querySelector("#run-inspector"),
+  overrides: document.querySelector("#capability-overrides"),
+  threadDialog: document.querySelector("#thread-dialog"),
+  threadForm: document.querySelector("#thread-form"),
+  threadManifest: document.querySelector("#thread-manifest"),
 };
 
-document.querySelector("#new-thread").addEventListener("click", createThread);
+document.querySelector("#new-thread").addEventListener("click", () => elements.threadDialog.showModal());
 document.querySelector("#dismiss-error").addEventListener("click", clearError);
+elements.threadForm.addEventListener("submit", createThread);
 elements.composer.addEventListener("submit", sendMessage);
 elements.input.addEventListener("keydown", (event) => {
   if (event.key === "Enter" && !event.shiftKey) {
@@ -70,10 +75,20 @@ async function loadRoute() {
   }
 }
 
-async function createThread() {
+async function createThread(event) {
+  event.preventDefault();
+  if (event.submitter?.value !== "create") {
+    elements.threadDialog.close();
+    return;
+  }
   await withPending(async () => {
-    const thread = await api("/v1/threads", { method: "POST" });
+    const manifest = parseJSON(elements.threadManifest.value, "Invalid manifest JSON");
+    const thread = await api("/v1/threads", {
+      method: "POST",
+      body: JSON.stringify({ manifest }),
+    });
     upsertThread(thread);
+    elements.threadDialog.close();
     location.hash = routeFor(thread.id);
     queueMicrotask(() => elements.input.focus());
   });
@@ -84,11 +99,16 @@ async function sendMessage(event) {
   const content = elements.input.value.trim();
   if (!state.thread || !content) return;
   await withPending(async () => {
+    const capabilityOverrides = parseJSON(elements.overrides.value, "Invalid capability overrides JSON");
+    if (!Array.isArray(capabilityOverrides)) {
+      throw new Error("Capability overrides must be a JSON array");
+    }
     const run = await api(`/v1/threads/${encodeURIComponent(state.thread.id)}/messages`, {
       method: "POST",
-      body: JSON.stringify({ content }),
+      body: JSON.stringify({ content, capability_overrides: capabilityOverrides }),
     });
     elements.input.value = "";
+    elements.overrides.value = "[]";
     state.thread = mergeRun(state.thread, run);
     if ((state.thread.run_count || 0) === 0) {
       state.thread.title = threadTitle(content);
@@ -204,22 +224,23 @@ function renderConversation() {
   elements.threadMeta.textContent = thread.id;
   elements.conversation.className = "conversation";
 
-  for (const message of thread.history || []) {
-    elements.conversation.append(textElement("div", message.content, `message ${message.role}`));
-  }
   const selectedRunId = parseRoute(location.hash).runId;
   for (const run of thread.runs || []) {
-    const card = document.createElement("div");
-    card.className = `run-card${selectedRunId === run.id ? " selected" : ""}`;
-    card.append(
-      textElement("div", run.status, `status ${run.status}`),
-      textElement("div", run.message),
-      ...(run.error ? [textElement("div", run.error, "muted")] : []),
-    );
-    card.addEventListener("click", () => { location.hash = routeFor(thread.id, run.id); });
-    elements.conversation.append(card);
+    elements.conversation.append(textElement("div", run.message, "message user"));
+    const response = document.createElement("div");
+    response.className = `message assistant ${run.status}${selectedRunId === run.id ? " selected" : ""}`;
+    response.append(textElement("span", run.status, `message-status ${run.status}`));
+    if (run.answer) {
+      response.append(document.createTextNode(run.answer));
+    } else if (run.error) {
+      response.append(document.createTextNode(run.error));
+    } else {
+      response.append(document.createTextNode(statusText(run.status)));
+    }
+    response.addEventListener("click", () => { location.hash = routeFor(thread.id, run.id); });
+    elements.conversation.append(response);
   }
-  if (!(thread.history || []).length && !(thread.runs || []).length) {
+  if (!(thread.runs || []).length) {
     elements.conversation.append(textElement("div", "Send the first message.", "empty-state"));
   }
   elements.conversation.scrollTop = elements.conversation.scrollHeight;
@@ -250,6 +271,7 @@ function renderInspector() {
   addMetadata(metadata, "Created", formatTime(run.created_at));
   addMetadata(metadata, "Updated", formatTime(run.updated_at));
   addMetadata(metadata, "Journal", run.journal_length);
+  addMetadata(metadata, "Capabilities", run.effective_manifest?.capabilities?.map((item) => item.name).join(", ") || "none");
   elements.inspector.append(metadata);
 
   if (run.answer) elements.inspector.append(textElement("div", run.answer, "message assistant"));
@@ -263,7 +285,11 @@ function renderInspector() {
   if (canRetry(run.status)) {
     controls.append(
       actionButton("Resume", "", () => runAction(run.id, "retry", { mode: "resume" })),
-      actionButton("Restart", "", () => runAction(run.id, "retry", { mode: "restart" })),
+      actionButton("Restart", "", () => {
+        const capabilityOverrides = parseJSON(elements.overrides.value, "Invalid capability overrides JSON");
+        if (!Array.isArray(capabilityOverrides)) throw new Error("Capability overrides must be a JSON array");
+        return runAction(run.id, "retry", { mode: "restart", capability_overrides: capabilityOverrides });
+      }),
     );
   }
   elements.inspector.append(controls);
@@ -368,7 +394,9 @@ function actionButton(label, className, handler) {
   button.className = className;
   button.textContent = label;
   button.disabled = state.pending;
-  button.addEventListener("click", handler);
+  button.addEventListener("click", () => {
+    Promise.resolve().then(handler).catch(showError);
+  });
   return button;
 }
 
@@ -410,4 +438,16 @@ function clearError() {
 
 function formatTime(value) {
   return value ? new Date(value).toLocaleString() : "—";
+}
+
+function statusText(status) {
+  switch (status) {
+    case "queued": return "Waiting to start...";
+    case "running": return "Aurora is working...";
+    case "stopping": return "Stopping...";
+    case "yielded": return "Aurora yielded. Resume or stop this run.";
+    case "stopped": return "Run stopped.";
+    case "failed": return "Run failed.";
+    default: return status;
+  }
 }
