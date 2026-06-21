@@ -20,9 +20,14 @@ npm start
 Open <http://127.0.0.1:5173>.
 
 Creating a thread opens a JSON manifest editor. The manifest controls the
-thread system prompt and default capabilities. The composer accepts an optional
+registered brain, thread system prompt, and default capabilities. The composer accepts an optional
 JSON array of per-run capability overrides; restart can use the same field to
 replace privileges for a failed or stopped run.
+
+Runs waiting on a yielded dispatcher show durable task cards. The UI can
+approve or deny a task and can copy a token-authenticated webhook command.
+Threads, runs, journals, and pending tasks reappear after the Aurora server
+restarts.
 
 Configuration:
 

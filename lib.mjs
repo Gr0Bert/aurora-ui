@@ -31,15 +31,15 @@ export function mergeRun(thread, run) {
 }
 
 export function isActive(status) {
-  return ["queued", "running", "stopping", "yielded"].includes(status);
+  return ["queued", "running", "stopping", "yielded", "waiting_for_task"].includes(status);
 }
 
 export function canStop(status) {
-  return ["queued", "running", "stopping", "yielded"].includes(status);
+  return ["queued", "running", "stopping", "yielded", "waiting_for_task"].includes(status);
 }
 
 export function canRetry(status) {
-  return ["yielded", "stopped", "failed"].includes(status);
+  return ["yielded", "interrupted", "stopped", "failed"].includes(status);
 }
 
 export function preview(value, limit = 500) {

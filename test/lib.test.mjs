@@ -16,8 +16,10 @@ test("run updates merge and clear active run", () => {
 
 test("run controls match lifecycle", () => {
   assert.equal(canStop("running"), true);
+  assert.equal(canStop("waiting_for_task"), true);
   assert.equal(canStop("completed"), false);
   assert.equal(canRetry("failed"), true);
+  assert.equal(canRetry("interrupted"), true);
   assert.equal(canRetry("running"), false);
 });
 

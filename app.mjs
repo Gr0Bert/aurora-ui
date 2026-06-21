@@ -6,6 +6,7 @@ const state = {
   threads: [],
   thread: null,
   journal: null,
+  tasks: null,
   eventSource: null,
   journalTimer: null,
   pending: false,
@@ -59,6 +60,7 @@ async function loadRoute() {
   closeEvents();
   state.thread = null;
   state.journal = null;
+  state.tasks = null;
   if (!threadId) {
     render();
     return;
@@ -68,7 +70,7 @@ async function loadRoute() {
     upsertThread(state.thread);
     render();
     connectEvents(threadId);
-    if (runId) await loadJournal(runId);
+    if (runId) await loadRunDetails(runId);
   } catch (error) {
     showError(error);
     render();
@@ -143,6 +145,13 @@ function connectEvents(threadId) {
       state.journalTimer = setTimeout(() => loadJournal(selected), 150);
     }
   });
+  source.addEventListener("task.created", refreshSelectedTasks);
+  source.addEventListener("task.updated", refreshSelectedTasks);
+}
+
+function refreshSelectedTasks() {
+  const selected = parseRoute(location.hash).runId;
+  if (selected) loadTasks(selected);
 }
 
 function closeEvents() {
@@ -158,6 +167,35 @@ async function loadJournal(runId) {
   } catch (error) {
     showError(error);
   }
+}
+
+async function loadTasks(runId) {
+  try {
+    state.tasks = await api(`/v1/runs/${encodeURIComponent(runId)}/tasks`);
+    renderInspector();
+  } catch (error) {
+    showError(error);
+  }
+}
+
+async function loadRunDetails(runId) {
+  await Promise.all([loadJournal(runId), loadTasks(runId)]);
+}
+
+async function resolveTask(task, decision, data = undefined, reason = "") {
+  await withPending(async () => {
+    await api(`/v1/tasks/${encodeURIComponent(task.id)}/resolve`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${task.webhook_token}` },
+      body: JSON.stringify({
+        decision,
+        ...(data === undefined ? {} : { data }),
+        actor: "local-ui",
+        reason: reason || `${decision} in Aurora UI`,
+      }),
+    });
+    await loadTasks(task.run_id);
+  });
 }
 
 async function runAction(runId, action, body = null) {
@@ -294,6 +332,12 @@ function renderInspector() {
   }
   elements.inspector.append(controls);
 
+  const tasks = state.tasks?.tasks || [];
+  if (tasks.length) {
+    elements.inspector.append(textElement("strong", `Tasks (${tasks.length})`));
+    for (const task of tasks) elements.inspector.append(renderTask(task));
+  }
+
   const header = document.createElement("div");
   header.className = "journal-header";
   header.append(textElement("strong", `Journal (${run.journal_length})`));
@@ -309,6 +353,44 @@ function renderInspector() {
   for (const entry of state.journal.entries || []) {
     elements.inspector.append(renderJournalEntry(entry));
   }
+}
+
+function renderTask(task) {
+  const card = document.createElement("div");
+  card.className = `task-card ${task.state}`;
+  card.append(
+    textElement("span", task.state, `status ${task.state}`),
+    textElement("div", task.summary || task.call?.name || "External task"),
+    textElement("div", `${task.call?.name || "call"} · position ${task.journal_position}`, "muted"),
+  );
+  if (task.state === "pending") {
+    const controls = document.createElement("div");
+    controls.className = "controls";
+    controls.append(
+      actionButton("Approve", "primary", () => resolveTask(task, "approved")),
+      actionButton("Deny", "danger", () => resolveTask(task, "denied")),
+      actionButton("Complete externally", "", () => {
+        const raw = window.prompt("JSON result for this task", "{}");
+        if (raw === null) return;
+        return resolveTask(task, "completed", parseJSON(raw, "Invalid task result JSON"));
+      }),
+      actionButton("Fail", "danger", () => {
+        const reason = window.prompt("Failure reason", "External task failed");
+        if (reason === null) return;
+        return resolveTask(task, "failed", undefined, reason);
+      }),
+      actionButton("Cancel", "danger", () => resolveTask(task, "cancelled")),
+      actionButton("Copy webhook", "", () => navigator.clipboard.writeText(
+        `curl -X POST -H 'Authorization: Bearer ${task.webhook_token}' -H 'Content-Type: application/json' ` +
+        `-d '{"decision":"approved","actor":"operator"}' ${location.origin}/v1/tasks/${task.id}/resolve`,
+      )),
+    );
+    card.append(controls);
+  }
+  const details = document.createElement("details");
+  details.append(textElement("summary", "Task details"), renderJSON(task));
+  card.append(details);
+  return card;
 }
 
 function renderJournalEntry(entry) {
@@ -446,6 +528,8 @@ function statusText(status) {
     case "running": return "Aurora is working...";
     case "stopping": return "Stopping...";
     case "yielded": return "Aurora yielded. Resume or stop this run.";
+    case "waiting_for_task": return "Aurora is waiting for external task resolution.";
+    case "interrupted": return "Run was interrupted by a server restart. Resume it.";
     case "stopped": return "Run stopped.";
     case "failed": return "Run failed.";
     default: return status;

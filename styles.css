@@ -94,7 +94,7 @@ h2 { font-size: 14px; margin: 0; }
 .status { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
 .status.completed { color: var(--success); }
 .status.failed, .status.stopped { color: var(--danger); }
-.status.running, .status.queued, .status.stopping, .status.yielded { color: var(--accent); }
+.status.running, .status.queued, .status.stopping, .status.yielded, .status.waiting_for_task { color: var(--accent); }
 
 .composer { padding: 12px; border-top: 1px solid var(--border); }
 .composer textarea {
@@ -117,6 +117,9 @@ h2 { font-size: 14px; margin: 0; }
 .metadata dt { color: var(--muted); }
 .metadata dd { margin: 0; overflow-wrap: anywhere; }
 .controls { display: flex; gap: 8px; margin-bottom: 16px; }
+.task-card { border: 1px solid var(--border); border-radius: 7px; padding: 10px; margin: 8px 0 14px; }
+.task-card.pending { border-color: var(--accent); }
+.task-card .controls { margin: 10px 0; flex-wrap: wrap; }
 .journal-header { display: flex; align-items: center; justify-content: space-between; margin: 16px 0 8px; }
 .journal-entry { border: 1px solid var(--border); border-radius: 6px; margin-bottom: 7px; }
 .journal-entry summary { cursor: pointer; padding: 9px; }
