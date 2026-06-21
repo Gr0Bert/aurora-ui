@@ -1,92 +1,12 @@
 <!doctype html>
 <html lang="en">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Aurora Debug UI</title>
-  <link rel="stylesheet" href="/styles.css">
-</head>
-<body>
-  <header class="topbar">
-    <div>
-      <strong>Aurora</strong>
-      <span class="subtitle">agent debug console</span>
-    </div>
-    <span id="connection" class="connection offline">disconnected</span>
-  </header>
-
-  <div id="error-banner" class="error-banner hidden">
-    <span id="error-message"></span>
-    <button id="dismiss-error" type="button">Dismiss</button>
-  </div>
-
-  <main class="workspace">
-    <aside class="panel threads-panel">
-      <div class="panel-header">
-        <h2>Threads</h2>
-        <button id="new-thread" type="button">New</button>
-      </div>
-      <div id="thread-list" class="thread-list"></div>
-    </aside>
-
-    <section class="panel chat-panel">
-      <div class="panel-header">
-        <div>
-          <h2 id="thread-title">Select a thread</h2>
-          <span id="thread-meta" class="muted"></span>
-        </div>
-      </div>
-      <div id="conversation" class="conversation empty-state">
-        Create or select a thread to begin.
-      </div>
-      <form id="composer" class="composer">
-        <textarea id="message-input" rows="4" placeholder="Ask Aurora to research or reason…" disabled></textarea>
-        <details class="override-editor">
-          <summary>Capability overrides for this run</summary>
-          <textarea id="capability-overrides" rows="5">[]</textarea>
-        </details>
-        <div class="composer-actions">
-          <span id="composer-hint" class="muted">Enter to send · Shift+Enter for newline</span>
-          <button id="send-message" type="submit" disabled>Send</button>
-        </div>
-      </form>
-    </section>
-
-    <aside class="panel inspector-panel">
-      <div class="panel-header">
-        <h2>Run inspector</h2>
-      </div>
-      <div id="run-inspector" class="inspector empty-state">Select a run.</div>
-    </aside>
-  </main>
-
-  <dialog id="thread-dialog">
-    <form id="thread-form" method="dialog">
-      <div class="dialog-header">
-        <h2>New thread manifest</h2>
-        <button value="cancel" type="submit">Close</button>
-      </div>
-      <label for="thread-manifest">Manifest JSON</label>
-      <textarea id="thread-manifest" rows="18">{
-  "version": 1,
-  "system_prompt": "You are a careful research assistant.",
-  "capabilities": [
-    {
-      "name": "internet.read",
-      "settings": {
-        "allow": ["*"],
-        "timeout_ms": 10000,
-        "max_response_bytes": 65536
-      }
-    }
-  ]
-}</textarea>
-      <div class="dialog-actions">
-        <button id="create-thread" class="primary" value="create" type="submit">Create thread</button>
-      </div>
-    </form>
-  </dialog>
-
-  <script type="module" src="/app.mjs"></script>
-</body>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Aurora</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
 </html>

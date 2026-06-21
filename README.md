@@ -1,33 +1,71 @@
 # aurora-ui
 
-Dependency-free debug UI for `aurora-capcompute`.
+React web channel for `aurora-k8s-agent`: switch between bound manifests and
+roam the execution graph (threads, runs, revisions, call graphs) with live chat
+and a debug drawer.
 
-Start Aurora:
+Start the agent (exposes its HTTP + SSE API on `:8081`):
 
 ```sh
-cd ../aurora-capcompute
-sh guest/build.sh
-AURORA_LLM=openai go run ./cmd/aurora-server
+cd ../aurora-k8s-agent
+AURORA_API_ADDR=:8081 go run ./cmd/aurora-k8s-agent
 ```
 
-Start the UI:
+Develop the UI (Vite dev server, hot reload, proxies `/api` → the agent):
 
 ```sh
 cd ../aurora-ui
-npm start
+npm install
+npm run dev        # http://127.0.0.1:5173
 ```
 
-Open <http://127.0.0.1:5173>.
+Point the dev proxy at a non-local agent with `AURORA_API_TARGET`
+(default `http://localhost:8081`).
 
-Creating a thread opens a JSON manifest editor. The manifest controls the
-thread system prompt and default capabilities. The composer accepts an optional
-JSON array of per-run capability overrides; restart can use the same field to
-replace privileges for a failed or stopped run.
+Production build + serve (no nginx needed — the bundled Node server serves the
+built assets and proxies `/api`):
 
-Configuration:
+```sh
+npm run build      # tsc + vite build → dist/
+npm start          # node server.mjs → http://127.0.0.1:5173
+```
 
-- `AURORA_UI_ADDR`, default `127.0.0.1:5173`
-- `AURORA_API_URL`, default `http://127.0.0.1:8080`
+## Authentication
 
-The Node server serves static files and streams `/v1/*` to Aurora. It has no
-external dependencies or build step.
+The agent gates its `/api` routes behind a web-channel bearer token:
+
+- The UI shows a **Sign in** screen. Enter a username/password from the
+  `WebChannel` user list; it exchanges them at `POST /api/login` for the channel
+  token and stores it in `localStorage` (`aurora_token`).
+- Every request then carries `Authorization: Bearer <token>`, and the SSE event
+  stream carries it as `?token=` (browser `EventSource` cannot set headers).
+- A `401` from any call returns you to the sign-in screen.
+
+## What's here
+
+- **Sidebar** — manifest switcher, thread list with live status dots and
+  relative times, polled every 10s so threads created elsewhere (e.g. Telegram)
+  appear. Collapsible.
+- **Thread view** — chat transcript built from the thread graph, live
+  `aurora.log` progress lines while a run works, per-run status badges, revision
+  tags, links into the debug drawer, and **inline Approve / Deny** cards next to a
+  message whose run (or a delegated child) is waiting for human approval.
+- **Debug drawer** — slide-in run inspector:
+  - revision history slider (`[` / `]`) across retries
+  - journal table with expandable args/results
+  - **subruns** — the delegation tree (`/api/runs/{id}/graph`), each child with
+    its own journal
+  - pending-approval cards (approve / deny), including child-run tasks
+  - Stop / Resume / Restart controls
+- **Keyboard shortcuts** — press `?` for the full list (`n`, `J`/`K`, `` ` ``,
+  `d`, `/`, `j`/`k`, `[`/`]`, `r`/`R`/`s`, `y`/`x`, `Esc`).
+
+## Configuration
+
+| Variable | Used by | Default | Purpose |
+| --- | --- | --- | --- |
+| `AURORA_API_TARGET` | `npm run dev` (Vite) | `http://localhost:8081` | Dev proxy target |
+| `AURORA_UI_ADDR` | `npm start` (server.mjs) | `127.0.0.1:5173` | Production listen address |
+| `AURORA_API_URL` | `npm start` (server.mjs) | `http://127.0.0.1:8081` | Production proxy target |
+
+Stack: React 18 + Vite + TypeScript. `npm run typecheck` runs `tsc --noEmit`.
